@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 // Task ...
@@ -14,6 +15,7 @@ type Task struct {
 	Description  string   `json:"description"`
 	Note         string   `json:"note"`
 	Applications []string `json:"applications"`
+	Name         string   `json:"name"` //другие поля задачи
 }
 
 var tasks = map[string]Task{
@@ -46,29 +48,49 @@ var tasks = map[string]Task{
 // GetTasks возвращает список всех задач
 func GetTasks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tasks)
+
+	// Кодируем задачи в JSON
+	err := json.NewEncoder(w).Encode(tasks)
+	if err != nil {
+		// Если произошла ошибка кодирования, возвращаем статус 500 и сообщение об ошибке
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // GetTask возвращает конкретную задачу по ID
 func GetTask(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	task, exists := tasks[id]
+
+	// Обработка случая, когда задача не найдена
 	if !exists {
 		http.Error(w, "Задача не найдена", http.StatusNotFound)
 		return
 	}
+
+	// Устанавливаем заголовок Content-Type
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(task)
+
+	// Кодируем задачу в JSON и обрабатываем возможные ошибки
+	if err := json.NewEncoder(w).Encode(task); err != nil {
+		// При возникновении ошибки кодирования, возвращаем статус 500
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
-// CreateTask создает новую задачу
+// Создание новой задачи
 func CreateTask(w http.ResponseWriter, r *http.Request) {
 	var newTask Task
 	if err := json.NewDecoder(r.Body).Decode(&newTask); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	newTask.ID = fmt.Sprintf("%d", len(tasks)+1) // Генерация ID
+
+	// Генерация уникального ID
+	newTask.ID = uuid.NewString()
+
 	tasks[newTask.ID] = newTask
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(newTask)
@@ -89,10 +111,18 @@ func UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Обновление задачи
-	updatedTask.ID = id
+	updatedTask.ID = id // повышает читаемость и узнаваемость кода для будущих доработок и изменения Task,
+	// например если он будет содержать дополнительные поля
 	tasks[id] = updatedTask
+
+	// Установка заголовка Content-Type
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(updatedTask)
+
+	// Кодируем обновлённую задачу в JSON и обрабатываем возможные ошибки
+	if err := json.NewEncoder(w).Encode(updatedTask); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // DeleteTask удаляет задачу по ID
